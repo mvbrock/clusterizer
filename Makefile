@@ -8,7 +8,7 @@ go-get:
 build:
 	mkdir -p bin/
 	go build -o bin/ssb-skmeans cmd/ssb_skmeans.go
-	go build -o bin/test_stream cmd/test_stream.go
+	go build -o bin/test-stream cmd/test_stream.go
 
 clean:
 	rm bin/*
