@@ -4,7 +4,22 @@ import "flag"
 import "fmt"
 import "context"
 import "log"
+import "math/rand"
+import "strings"
 import kafka "github.com/segmentio/kafka-go"
+
+func generateRandFloats(min float64, max float64, size int) []float64 {
+    array := make([]float64, size)
+    for idx := range array {
+        array[idx] = min + rand.Float64() * (max - min)
+    }
+    return array
+}
+
+func arrayToCSV(array []float64) string {
+    str := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(array)), ", "), "[]")
+    return str
+}
 
 func main() {
     kafkaHost := flag.String("kafkaHost", "localhost:9092", "The hostname:port string for the Kafka queue")
@@ -17,6 +32,7 @@ func main() {
     fmt.Println("kafkaHost: ", *kafkaHost)
     fmt.Println("kafkaTopicName: ", *kafkaTopicName)
     fmt.Println("kafkaTopicParts: ", *kafkaTopicParts)
+    fmt.Println("arraySize: ", *arraySize)
 
     // Delete the topic and create a new one
     kafkaConn, _ := kafka.Dial("tcp", *kafkaHost)
@@ -42,7 +58,7 @@ func main() {
     for i := 0; ; i++ {
         msg := kafka.Message{
             Key: []byte(fmt.Sprintf("%d", i)),
-            Value: []byte(fmt.Sprint("0,1,2,3,4")),
+            Value: []byte(arrayToCSV(generateRandFloats(0, 1, *arraySize))),
         }
         err := kafkaWriter.WriteMessages(context.Background(), msg)
         if err != nil {
