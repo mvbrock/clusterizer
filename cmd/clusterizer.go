@@ -5,6 +5,8 @@ import "fmt"
 import "context"
 import "log"
 import "sync"
+import "strings"
+import "strconv"
 import kafka "github.com/segmentio/kafka-go"
 import serf "github.com/hashicorp/serf/serf"
 
@@ -64,8 +66,13 @@ func main() {
     serfConfig.EventCh = serfChan
     serfConfig.NodeName = *serfNodeName
     if *serfBind != "" {
-        serfConfig.MemberlistConfig.BindAddr = "localhost"
-        serfConfig.MemberlistConfig.BindPort = 7947
+        bindParts := strings.Split(*serfBind, ":")
+        serfConfig.MemberlistConfig.BindAddr = bindParts[0]
+        bindPort, err := strconv.Atoi(bindParts[1])
+        if err != nil {
+            log.Fatalln(err)
+        }
+        serfConfig.MemberlistConfig.BindPort = bindPort
     }
     serfAgent, err := serf.Create(serfConfig)
     if err != nil {
