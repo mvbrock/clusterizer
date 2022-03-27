@@ -4,8 +4,29 @@ import "flag"
 import "fmt"
 import "context"
 import "log"
+import "sync"
 import kafka "github.com/segmentio/kafka-go"
 import serf "github.com/hashicorp/serf/serf"
+
+func receiveFromKafka(reader *kafka.Reader, waitGroup *sync.WaitGroup) {
+    defer waitGroup.Done()
+    for {
+        msg, err := reader.ReadMessage(context.Background())
+        if err != nil {
+            log.Println(err)
+        }
+        fmt.Printf("kafka message at topic:%v partition:%v offset:%v  %s = %s\n",
+            msg.Topic, msg.Partition, msg.Offset, string(msg.Key), string(msg.Value))
+    }
+}
+
+func receiveFromSerf(serfChan chan serf.Event, waitGroup *sync.WaitGroup) {
+    defer waitGroup.Done()
+    for {
+        event := <- serfChan
+        fmt.Printf("serf event: %s\n", event.String())
+    }
+}
 
 func main() {
     // Kafka options
@@ -39,6 +60,8 @@ func main() {
 
     // Establish the Serf configuration
     serfConfig := serf.DefaultConfig()
+    serfChan := make(chan serf.Event)
+    serfConfig.EventCh = serfChan
     serfConfig.NodeName = *serfNodeName
     if *serfBind != "" {
         serfConfig.MemberlistConfig.BindAddr = "localhost"
@@ -68,13 +91,17 @@ func main() {
     }
     kafkaReader := kafka.NewReader(kafkaReaderConfig)
 
-    // Read messages off the queue
-    for {
-        msg, err := kafkaReader.ReadMessage(context.Background())
-        if err != nil {
-            log.Println(err)
-        }
-        fmt.Printf("message at topic:%v partition:%v offset:%v  %s = %s\n",
-            msg.Topic, msg.Partition, msg.Offset, string(msg.Key), string(msg.Value))
-    }
+    // Create the wait group for the Kafka and Serf reader threads
+    var waitGroup sync.WaitGroup
+
+    // Start reading messages off the Serf channel
+    waitGroup.Add(1)
+    go receiveFromSerf(serfChan, &waitGroup)
+
+    // Start reading messages off the Kafka queue
+    waitGroup.Add(1)
+    go receiveFromKafka(kafkaReader, &waitGroup)
+
+    // Wait for the threads to complete
+    waitGroup.Wait()
 }
